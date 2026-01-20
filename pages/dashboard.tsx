@@ -30,8 +30,10 @@ export default function Dashboard() {
   const router = useRouter();
   const [comments, setComments] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
-  const [summary, setSummary] = useState<any>(null);
   const [trend, setTrend] = useState<any>({});
+  // 🔹 1. NEW STATES FOR OUTLET FILTERING
+  const [outlets, setOutlets] = useState<any[]>([]);
+  const [selectedOutlet, setSelectedOutlet] = useState<string>("");
 
   useEffect(() => {
     async function protectPage() {
@@ -56,18 +58,23 @@ export default function Dashboard() {
     protectPage();
   }, [router]);
 
+  // 🔹 4. FILTER COMMENTS BY SELECTED OUTLET
+  const outletComments = selectedOutlet
+    ? comments.filter((c) => c.outlet_id === selectedOutlet)
+    : [];
+
   const stats = {
-    total: comments.length,
-    favourable: comments.filter((c) => c.sentiment === "Favourable").length,
-    unfavourable: comments.filter((c) => c.sentiment === "Unfavourable").length,
-    neutral: comments.filter((c) => c.sentiment === "Neutral").length,
+    total: outletComments.length,
+    favourable: outletComments.filter((c) => c.sentiment === "Favourable").length,
+    unfavourable: outletComments.filter((c) => c.sentiment === "Unfavourable").length,
+    neutral: outletComments.filter((c) => c.sentiment === "Neutral").length,
   };
 
   async function loadComments() {
     setLoading(true);
     const { data, error } = await supabase
       .from("comments")
-      .select("id,created_at,sentiment")
+      .select("id,created_at,sentiment,comment_text,outlet_id")
       .order("created_at", { ascending: false })
       .limit(1000);
 
@@ -79,22 +86,24 @@ export default function Dashboard() {
     setLoading(false);
   }
 
-  async function loadSummary() {
-    const res = await fetch("/api/summary");
-    const json = await res.json();
-    setSummary(json.data);
-  }
-
   async function loadTrend() {
     const res = await fetch("/api/trend");
     const json = await res.json();
     setTrend(json.trend || {});
   }
 
+  // 🔹 2. NEW FUNCTION TO LOAD OUTLETS
+  async function loadOutlets() {
+    const res = await fetch("/api/outlets");
+    const json = await res.json();
+    setOutlets(json.data || []);
+  }
+
+  // 🔹 3. CALL loadOutlets IN useEffect
   useEffect(() => {
     loadComments();
-    loadSummary();
     loadTrend();
+    loadOutlets();
   }, []);
 
   const pieData = {
@@ -153,7 +162,7 @@ export default function Dashboard() {
   const labels = lastNDates(7);
   const countsMap: Record<string, number> = {};
   labels.forEach((l) => (countsMap[l] = 0));
-  comments.forEach((c) => {
+  outletComments.forEach((c) => {
     if (!c?.created_at) return;
     const d = new Date(c.created_at).toLocaleDateString();
     if (countsMap[d] !== undefined) countsMap[d] += 1;
@@ -202,6 +211,63 @@ export default function Dashboard() {
       },
     },
   };
+
+  function detectIssue(text: string) {
+    const t = text.toLowerCase();
+
+    if (t.includes("wait") || t.includes("slow") || t.includes("delay"))
+      return "Service Speed";
+
+    if (t.includes("staff") || t.includes("rude") || t.includes("behavior"))
+      return "Staff Behaviour";
+
+    if (t.includes("food") || t.includes("taste") || t.includes("cold"))
+      return "Food Quality";
+
+    if (t.includes("dirty") || t.includes("clean"))
+      return "Cleanliness";
+
+    if (t.includes("bill") || t.includes("price") || t.includes("cost"))
+      return "Billing / Pricing";
+
+    return "General Service";
+  }
+
+  function generateConclusion(comments: any[]) {
+    const negative = comments.filter(
+      (c) => c.sentiment === "Unfavourable" && c.comment_text
+    );
+
+    if (negative.length === 0) {
+      return {
+        summary:
+          "Customers are generally satisfied with this outlet. No major recurring issues were detected.",
+        actions: [],
+      };
+    }
+
+    const issueCount: Record<string, number> = {};
+
+    negative.forEach((c) => {
+      const issue = detectIssue(c.comment_text);
+      issueCount[issue] = (issueCount[issue] || 0) + 1;
+    });
+
+    const sortedIssues = Object.entries(issueCount).sort(
+      (a, b) => b[1] - a[1]
+    );
+
+    const topIssue = sortedIssues[0][0];
+
+    return {
+      summary: `Negative feedback indicates recurring issues related to ${topIssue.toLowerCase()}. Customers appear dissatisfied with this aspect of service at the selected outlet.`,
+      actions: [
+        `Investigate ${topIssue.toLowerCase()} related complaints.`,
+        "Provide corrective training or process improvements.",
+        "Monitor customer feedback after improvements are applied.",
+      ],
+    };
+  }
 
   return (
     <div
@@ -394,132 +460,6 @@ export default function Dashboard() {
           />
         </div>
 
-        {/* SUMMARY REPORT */}
-        <div
-          style={{
-            background: "linear-gradient(135deg, #334155 0%, #1e293b 100%)",
-            borderRadius: 16,
-            padding: 28,
-            border: "1px solid rgba(255, 255, 255, 0.1)",
-            boxShadow: "0 10px 30px rgba(0, 0, 0, 0.3)",
-            marginBottom: 32,
-          }}
-        >
-          <h2
-            style={{
-              color: "#f9fafb",
-              marginBottom: 24,
-              fontSize: 20,
-              fontWeight: 600,
-              letterSpacing: "-0.01em",
-            }}
-          >
-            Rating Summary
-          </h2>
-
-          {!summary ? (
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 12,
-                color: "#9ca3af",
-                padding: "20px 0",
-              }}
-            >
-              <svg
-                width="24"
-                height="24"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                style={{ animation: "spin 1s linear infinite" }}
-              >
-                <circle cx="12" cy="12" r="10"></circle>
-                <path d="M12 6v6l4 2"></path>
-              </svg>
-              Loading summary...
-            </div>
-          ) : (
-            <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                <thead>
-                  <tr
-                    style={{
-                      borderBottom: "2px solid rgba(255, 255, 255, 0.1)",
-                    }}
-                  >
-                    <th style={headerStyle}>Rating</th>
-                    <th style={{ ...headerStyle, textAlign: "center" }}>
-                      Count
-                    </th>
-                    <th style={{ ...headerStyle, textAlign: "right" }}>
-                      Percentage
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {["Excellent", "Good", "Fair", "Poor"].map((rating, idx) => (
-                    <tr
-                      key={rating}
-                      style={{
-                        borderBottom:
-                          idx < 3
-                            ? "1px solid rgba(255, 255, 255, 0.05)"
-                            : "none",
-                      }}
-                    >
-                      <td style={cellStyle}>
-                        <div
-                          style={{ display: "flex", alignItems: "center", gap: 8 }}
-                        >
-                          <span
-                            style={{
-                              width: 8,
-                              height: 8,
-                              borderRadius: "50%",
-                              background:
-                                rating === "Excellent"
-                                  ? "#22c55e"
-                                  : rating === "Good"
-                                  ? "#3b82f6"
-                                  : rating === "Fair"
-                                  ? "#fbbf24"
-                                  : "#ef4444",
-                            }}
-                          />
-                          {rating}
-                        </div>
-                      </td>
-                      <td
-                        style={{
-                          ...cellStyle,
-                          textAlign: "center",
-                          fontSize: 18,
-                          fontWeight: 600,
-                        }}
-                      >
-                        {summary[rating]}
-                      </td>
-                      <td
-                        style={{
-                          ...cellStyle,
-                          textAlign: "right",
-                          fontSize: 16,
-                          fontWeight: 500,
-                        }}
-                      >
-                        {summary.percentages[rating]}%
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-
         {/* CHARTS */}
         <div
           style={{
@@ -561,6 +501,7 @@ export default function Dashboard() {
             padding: 28,
             border: "1px solid rgba(255, 255, 255, 0.1)",
             boxShadow: "0 10px 30px rgba(0, 0, 0, 0.3)",
+            marginBottom: 32,
           }}
         >
           <h2
@@ -727,6 +668,137 @@ export default function Dashboard() {
             </div>
           )}
         </div>
+
+        {/* 🔹 6. OUTLET DROPDOWN SELECTOR */}
+        <div
+          style={{
+            background: "linear-gradient(135deg, #334155 0%, #1e293b 100%)",
+            borderRadius: 16,
+            padding: 28,
+            border: "1px solid rgba(255, 255, 255, 0.1)",
+            boxShadow: "0 10px 30px rgba(0, 0, 0, 0.3)",
+            marginBottom: 32,
+          }}
+        >
+          <label
+            style={{
+              color: "#cbd5e1",
+              fontWeight: 600,
+              fontSize: 15,
+              display: "block",
+              marginBottom: 8,
+            }}
+          >
+            Select Outlet
+          </label>
+          <select
+            value={selectedOutlet}
+            onChange={(e) => setSelectedOutlet(e.target.value)}
+            style={{
+              padding: "10px 14px",
+              borderRadius: 8,
+              width: "100%",
+              maxWidth: 320,
+              background: "rgba(15,23,42,0.6)",
+              color: "#f9fafb",
+              border: "1px solid rgba(255,255,255,0.2)",
+              fontSize: 14,
+              fontWeight: 500,
+              cursor: "pointer",
+            }}
+          >
+            <option value="">-- Select Outlet --</option>
+            {outlets.map((o) => (
+              <option key={o.id} value={o.id}>
+                {o.outlet_name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* SERVICE IMPROVEMENT CONCLUSION - 🔹 5. NOW USES outletComments */}
+        {selectedOutlet ? (
+          (() => {
+            const conclusion = generateConclusion(outletComments);
+            return (
+              <div
+                style={{
+                  background: "linear-gradient(135deg, #334155 0%, #1e293b 100%)",
+                  borderRadius: 16,
+                  padding: 28,
+                  border: "1px solid rgba(255, 255, 255, 0.1)",
+                  boxShadow: "0 10px 30px rgba(0, 0, 0, 0.3)",
+                }}
+              >
+                <h2
+                  style={{
+                    color: "#f9fafb",
+                    marginBottom: 16,
+                    fontSize: 20,
+                    fontWeight: 600,
+                    letterSpacing: "-0.01em",
+                  }}
+                >
+                  Service Improvement Conclusion
+                </h2>
+
+                <p
+                  style={{
+                    color: "#e5e7eb",
+                    lineHeight: 1.7,
+                    fontSize: 15,
+                    marginBottom: 16,
+                  }}
+                >
+                  {conclusion.summary}
+                </p>
+
+                {conclusion.actions.length > 0 && (
+                  <>
+                    <h4
+                      style={{
+                        marginTop: 20,
+                        marginBottom: 12,
+                        color: "#fbbf24",
+                        fontSize: 16,
+                        fontWeight: 600,
+                      }}
+                    >
+                      Recommended Actions
+                    </h4>
+                    <ul
+                      style={{
+                        margin: 0,
+                        paddingLeft: 20,
+                        color: "#e5e7eb",
+                        lineHeight: 1.8,
+                      }}
+                    >
+                      {conclusion.actions.map((a, i) => (
+                        <li key={i} style={{ marginBottom: 8 }}>
+                          {a}
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                )}
+              </div>
+            );
+          })()
+        ) : (
+          <div
+            style={{
+              padding: 24,
+              borderRadius: 12,
+              background: "rgba(15,23,42,0.6)",
+              color: "#9ca3af",
+              textAlign: "center",
+              border: "1px solid rgba(255, 255, 255, 0.1)",
+            }}
+          >
+            Please select an outlet to view service improvement insights.
+          </div>
+        )}
 
         <style>{`
           @keyframes spin {

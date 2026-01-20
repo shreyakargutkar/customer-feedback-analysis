@@ -1,9 +1,11 @@
 // components/Nav.tsx
 import { useRouter } from "next/router";
-import React from "react";
+import React, { useEffect, useState } from "react";
+import { supabase } from "../lib/supabaseClient";
 
 export default function Nav() {
   const router = useRouter();
+  const [loggedIn, setLoggedIn] = useState(false);
 
   function safeNavigate(href: string) {
     if (!href) return;
@@ -12,6 +14,29 @@ export default function Nav() {
       return;
     }
     router.push(href);
+  }
+
+  useEffect(() => {
+    async function checkAuth() {
+      const { data } = await supabase.auth.getUser();
+      setLoggedIn(!!data?.user);
+    }
+
+    checkAuth();
+
+    const { data: listener } = supabase.auth.onAuthStateChange(() => {
+      checkAuth();
+    });
+
+    return () => {
+      listener.subscription.unsubscribe();
+    };
+  }, []);
+
+  async function handleLogout() {
+    await supabase.auth.signOut();
+    setLoggedIn(false);
+    router.replace("/add-comment");
   }
 
   const linkStyle: React.CSSProperties = {
@@ -47,8 +72,6 @@ export default function Nav() {
         Comments
       </span>
 
-
-
       <span style={linkStyle} onClick={() => safeNavigate("/admin/outlets")}>
         Outlets
       </span>
@@ -57,9 +80,22 @@ export default function Nav() {
         Keywords
       </span>
 
-      <span style={linkStyle} onClick={() => safeNavigate("/login")}>
-        Login
-      </span>
+      {/* RIGHT SIDE AUTH BUTTON */}
+      {loggedIn ? (
+        <span
+          style={{ ...linkStyle, marginLeft: "auto", color: "#f87171" }}
+          onClick={handleLogout}
+        >
+          Logout
+        </span>
+      ) : (
+        <span
+          style={{ ...linkStyle, marginLeft: "auto", color: "#60a5fa" }}
+          onClick={() => safeNavigate("/login")}
+        >
+          Login
+        </span>
+      )}
     </nav>
   );
 }

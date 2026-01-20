@@ -50,7 +50,7 @@ export default function AddCommentPage() {
     const payload = {
       guest_name: guest.trim(),
       outlet_id: outletId,
-      rating,
+      rating: String(rating),   // ✅ FIX: convert to TEXT
       comment_text: comment.trim(),
       phone: phone.trim(),
       email: email.trim(),
@@ -119,29 +119,63 @@ export default function AddCommentPage() {
         <div style={formCard}>
           <form onSubmit={handleSubmit} style={{ display: "grid", gap: 20 }}>
             <div style={formGroup}>
-              <label style={label}>Guest Name <span style={required}>*</span></label>
-              <input required style={inputStyle} value={guest} onChange={(e) => setGuest(e.target.value)} />
+              <label style={label}>
+                Guest Name <span style={required}>*</span>
+              </label>
+              <input
+                required
+                style={inputStyle}
+                value={guest}
+                onChange={(e) => setGuest(e.target.value)}
+              />
             </div>
 
             <div style={formGroup}>
-              <label style={label}>Phone <span style={required}>*</span></label>
-              <input required style={inputStyle} value={phone} onChange={(e) => setPhone(e.target.value)} />
+              <label style={label}>
+                Phone <span style={required}>*</span>
+              </label>
+              <input
+                required
+                style={inputStyle}
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+              />
             </div>
 
             <div style={formGroup}>
-              <label style={label}>Email <span style={required}>*</span></label>
-              <input required style={inputStyle} value={email} onChange={(e) => setEmail(e.target.value)} />
+              <label style={label}>
+                Email <span style={required}>*</span>
+              </label>
+              <input
+                required
+                style={inputStyle}
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
             </div>
 
             <div style={formGroup}>
               <label style={label}>Address</label>
-              <input style={inputStyle} value={address} onChange={(e) => setAddress(e.target.value)} />
+              <input
+                style={inputStyle}
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+              />
             </div>
 
             <div style={formGroup}>
-              <label style={label}>Outlet <span style={required}>*</span></label>
-              <select required style={inputStyle} value={outletId} onChange={(e) => setOutletId(e.target.value)}>
-                <option value="" disabled>Select outlet</option>
+              <label style={label}>
+                Outlet <span style={required}>*</span>
+              </label>
+              <select
+                required
+                style={inputStyle}
+                value={outletId}
+                onChange={(e) => setOutletId(e.target.value)}
+              >
+                <option value="" disabled>
+                  Select outlet
+                </option>
                 {outlets.map((o) => (
                   <option key={o.id} value={o.id}>
                     {o.outlet_name || o.name}
@@ -152,7 +186,9 @@ export default function AddCommentPage() {
 
             {/* ⭐ STAR RATING */}
             <div style={formGroup}>
-              <label style={label}>Rating <span style={required}>*</span></label>
+              <label style={label}>
+                Rating <span style={required}>*</span>
+              </label>
               <div style={{ display: "flex", gap: 8 }}>
                 {[1, 2, 3, 4, 5].map((star) => (
                   <span
@@ -171,8 +207,15 @@ export default function AddCommentPage() {
             </div>
 
             <div style={formGroup}>
-              <label style={label}>Comment <span style={required}>*</span></label>
-              <textarea required style={textarea} value={comment} onChange={(e) => setComment(e.target.value)} />
+              <label style={label}>
+                Comment <span style={required}>*</span>
+              </label>
+              <textarea
+                required
+                style={textarea}
+                value={comment}
+                onChange={(e) => setComment(e.target.value)}
+              />
             </div>
 
             <button type="submit" disabled={loading}>

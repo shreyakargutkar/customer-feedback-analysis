@@ -10,7 +10,7 @@ type CommentRow = {
   email?: string;
   address?: string;
   comment_text?: string;
-  rating?: number;
+  rating?: string;
   sentiment?: "Favourable" | "Unfavourable" | "Neutral";
   sentiment_confidence?: number;
   sentiment_reason?: string;
@@ -104,7 +104,8 @@ export default function CommentsPage() {
       c.guest_name?.toLowerCase().includes(q) ||
       c.comment_text?.toLowerCase().includes(q) ||
       c.phone?.toLowerCase().includes(q) ||
-      c.email?.toLowerCase().includes(q);
+      c.email?.toLowerCase().includes(q) ||
+      c.address?.toLowerCase().includes(q);
 
     const matchesSentiment =
       filterSentiment === "all" || c.sentiment === filterSentiment;
@@ -141,12 +142,13 @@ export default function CommentsPage() {
     return "#ef4444";
   };
 
-  function renderStars(value?: number) {
-    if (!value) return <span style={{ color: "#64748b" }}>—</span>;
+  function renderStars(value?: string) {
+    const n = Number(value);
+    if (!n) return <span style={{ color: "#64748b" }}>—</span>;
     return (
       <span style={{ fontSize: 16 }}>
-        <span style={{ color: "#fbbf24" }}>{"★".repeat(value)}</span>
-        <span style={{ color: "#475569" }}>{"★".repeat(5 - value)}</span>
+        <span style={{ color: "#fbbf24" }}>{"★".repeat(n)}</span>
+        <span style={{ color: "#475569" }}>{"★".repeat(5 - n)}</span>
       </span>
     );
   }
@@ -184,7 +186,7 @@ export default function CommentsPage() {
                 letterSpacing: "-0.02em",
               }}
             >
-              Guest Comments Analysis
+              Guest Comments
             </h1>
             <p
               style={{
@@ -194,7 +196,7 @@ export default function CommentsPage() {
                 fontWeight: 400,
               }}
             >
-              AI-powered sentiment analysis with confidence scoring
+              View and manage all customer feedback
             </p>
           </div>
           <div style={{ display: "flex", gap: 12 }}>
@@ -298,7 +300,7 @@ export default function CommentsPage() {
           }}
         >
           <input
-            placeholder="Search by name, comment, phone, or email..."
+            placeholder="Search by name, comment, phone, email, or address..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             style={{
@@ -398,7 +400,7 @@ export default function CommentsPage() {
                     borderBottom: "1px solid rgba(255, 255, 255, 0.1)",
                   }}
                 >
-                  <th style={headerStyle}>Guest</th>
+                  <th style={headerStyle}>Guest Details</th>
                   <th style={headerStyle}>Comment</th>
                   <th style={{ ...headerStyle, textAlign: "center" }}>Rating</th>
                   <th style={{ ...headerStyle, textAlign: "center" }}>Sentiment</th>
@@ -471,9 +473,6 @@ export default function CommentsPage() {
                 ) : (
                   filtered.map((c) => {
                     const s = sentimentStyle(c.sentiment);
-                    const confidenceColor = getConfidenceColor(
-                      c.sentiment_confidence
-                    );
                     return (
                       <tr
                         key={c.id}
@@ -509,8 +508,13 @@ export default function CommentsPage() {
                               ✉️ {c.email}
                             </div>
                           )}
+                          {c.address && (
+                            <div style={{ fontSize: 13, color: "#9ca3af" }}>
+                              📍 {c.address}
+                            </div>
+                          )}
                         </td>
-                        <td style={{ ...cellStyle, maxWidth: 350 }}>
+                        <td style={{ ...cellStyle, maxWidth: 400 }}>
                           <div
                             style={{
                               overflow: "hidden",
@@ -558,7 +562,7 @@ export default function CommentsPage() {
                                 style={{
                                   fontSize: 18,
                                   fontWeight: 700,
-                                  color: confidenceColor,
+                                  color: getConfidenceColor(c.sentiment_confidence),
                                 }}
                               >
                                 {Math.round(c.sentiment_confidence * 100)}%
@@ -576,7 +580,7 @@ export default function CommentsPage() {
                                   style={{
                                     width: `${c.sentiment_confidence * 100}%`,
                                     height: "100%",
-                                    background: confidenceColor,
+                                    background: getConfidenceColor(c.sentiment_confidence),
                                     borderRadius: 2,
                                   }}
                                 />

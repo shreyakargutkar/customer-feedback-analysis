@@ -4,8 +4,6 @@ import supabaseAdmin from "../../lib/supabaseAdmin";
 type KeywordDBRow = {
   keyword: string;
   polarity: "positive" | "negative";
-  benchmark: { name: string }[] | null;
-  sub_benchmark: { name: string }[] | null;
 };
 
 type HFAIResult = {
@@ -24,44 +22,35 @@ export default async function handler(
   const {
     guest_name,
     outlet_id,
+    rating,
     comment_text,
     phone,
     email,
     address,
   } = req.body || {};
 
-  if (!guest_name || !outlet_id || !comment_text || !phone || !email) {
+  if (!guest_name || !outlet_id || !comment_text || !phone || !email || !rating) {
     return res.status(400).json({ error: "Missing required fields" });
   }
 
   try {
-    // 1️⃣ LOAD KEYWORDS
+    // ✅ LOAD KEYWORDS — NO BENCHMARKS, NO JOINS
     const { data } = await supabaseAdmin
       .from("keywords")
-      .select(`
-        keyword,
-        polarity,
-        benchmark:benchmark_id ( name ),
-        sub_benchmark:sub_benchmark_id ( name )
-      `);
+      .select("keyword, polarity");
 
     const keywords = (data ?? []) as KeywordDBRow[];
+
     const text = comment_text.toLowerCase();
 
     const positiveMatches: string[] = [];
     const negativeMatches: string[] = [];
 
-    const benchmarkSet = new Set<string>();
-    const subBenchmarkSet = new Set<string>();
-
     for (const k of keywords) {
-      if (text.includes(k.keyword.toLowerCase())) {
-        if (k.polarity === "positive") positiveMatches.push(k.keyword);
-        if (k.polarity === "negative") negativeMatches.push(k.keyword);
-
-        if (k.benchmark?.[0]?.name) benchmarkSet.add(k.benchmark[0].name);
-        if (k.sub_benchmark?.[0]?.name)
-          subBenchmarkSet.add(k.sub_benchmark[0].name);
+      const kw = k.keyword.trim().toLowerCase();
+      if (kw && text.includes(kw)) {
+        if (k.polarity === "positive") positiveMatches.push(kw);
+        if (k.polarity === "negative") negativeMatches.push(kw);
       }
     }
 
@@ -69,30 +58,30 @@ export default async function handler(
     let sentiment_reason = "";
     let sentiment_confidence = 0;
 
-    // 2️⃣ KEYWORD-BASED SENTIMENT (PRIORITY)
+    // ✅ KEYWORD-BASED SENTIMENT (WORKING LOGIC)
     if (positiveMatches.length > 0 || negativeMatches.length > 0) {
       if (positiveMatches.length > 0 && negativeMatches.length > 0) {
         sentiment = "Neutral";
         sentiment_confidence = 0.65;
         sentiment_reason =
-          "Both positive and negative keywords found in database: " +
+          "Both positive and negative keywords were detected: " +
           [...positiveMatches, ...negativeMatches].join(", ");
       } else if (positiveMatches.length > 0) {
         sentiment = "Favourable";
         sentiment_confidence = 0.95;
         sentiment_reason =
-          "Positive keywords found in database: " +
+          "Positive keywords were detected: " +
           positiveMatches.join(", ");
       } else {
         sentiment = "Unfavourable";
         sentiment_confidence = 0.95;
         sentiment_reason =
-          "Negative keywords found in database: " +
+          "Negative keywords were detected: " +
           negativeMatches.join(", ");
       }
     }
 
-    // 3️⃣ AI-BASED SENTIMENT (SAFE FALLBACK)
+    // ✅ AI FALLBACK (ONLY IF NO KEYWORDS)
     else {
       const hfResponse = await fetch(
         "https://api-inference.huggingface.co/models/cardiffnlp/twitter-roberta-base-sentiment",
@@ -111,52 +100,39 @@ export default async function handler(
       let results: HFAIResult[] = [];
 
       if (Array.isArray(rawHF)) {
-        if (Array.isArray(rawHF[0])) {
-          results = rawHF[0];
-        } else {
-          results = rawHF;
-        }
+        results = Array.isArray(rawHF[0]) ? rawHF[0] : rawHF;
       }
 
       if (!results.length) {
         sentiment = "Neutral";
         sentiment_confidence = 0.5;
         sentiment_reason =
-          "AI response unavailable. Defaulted to Neutral sentiment.";
+          "AI response unavailable. Defaulted to Neutral.";
       } else {
         let top = results[0];
         for (const r of results) {
-          if (
-            typeof r.score === "number" &&
-            r.score > (top.score ?? 0)
-          ) {
-            top = r;
-          }
+          if (r.score > top.score) top = r;
         }
 
-        sentiment_confidence =
-          typeof top.score === "number"
-            ? Number(top.score.toFixed(2))
-            : 0.5;
+        sentiment_confidence = Number(top.score.toFixed(2));
 
         if (top.label === "LABEL_2") sentiment = "Favourable";
         else if (top.label === "LABEL_0") sentiment = "Unfavourable";
         else sentiment = "Neutral";
 
         sentiment_reason =
-          "No keywords found. AI classified the comment as " +
-          sentiment +
-          ".";
+          "No keywords found. AI classified as " + sentiment + ".";
       }
     }
 
-    // 4️⃣ INSERT INTO DB
+    // ✅ INSERT COMMENT
     const { data: inserted, error } = await supabaseAdmin
       .from("comments")
       .insert([
         {
           guest_name,
           outlet_id,
+          rating: String(rating),
           comment_text,
           phone,
           email,
@@ -164,8 +140,6 @@ export default async function handler(
           sentiment,
           sentiment_confidence,
           sentiment_reason,
-          benchmarks: Array.from(benchmarkSet),
-          sub_benchmarks: Array.from(subBenchmarkSet),
         },
       ])
       .select()
