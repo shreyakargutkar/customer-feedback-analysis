@@ -80,7 +80,7 @@ export default function Login() {
       setUserRole(profile.role)
 
       setTimeout(() => {
-        if (profile.role === 'employee') {
+        if (profile.role === 'employee' || profile.role === 'admin') {
           router.push('/dashboard')
         } else {
           router.push('/add-comment')
@@ -105,7 +105,7 @@ export default function Login() {
   }
 
   const goToDashboard = () => {
-    if (userRole === 'employee') {
+    if (userRole === 'employee' || userRole === 'admin') {
       router.push('/dashboard')
     } else {
       router.push('/add-comment')

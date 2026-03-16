@@ -1,3 +1,4 @@
+// pages/comments.tsx
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
@@ -19,6 +20,7 @@ type CommentRow = {
   sub_benchmarks?: string[];
   created_at?: string;
   outlet_id?: string;
+  outlet_name?: string;
 };
 
 export default function CommentsPage() {
@@ -34,25 +36,23 @@ export default function CommentsPage() {
   useEffect(() => {
     async function protectPage() {
       const { data } = await supabase.auth.getUser();
-
       if (!data?.user) {
-        router.replace("/add-comment");
+        router.replace("/login");
         return;
       }
-
       const { data: profile } = await supabase
         .from("profiles")
         .select("role")
         .eq("id", data.user.id)
         .single();
 
-      if (profile?.role !== "employee") {
+      // Allow both admin and employee
+      if (profile?.role !== "admin" && profile?.role !== "employee") {
         router.replace("/add-comment");
       } else {
         setIsAuthorized(true);
       }
     }
-
     protectPage();
   }, [router]);
 
@@ -84,6 +84,11 @@ export default function CommentsPage() {
     loadComments();
   }
 
+  async function handleLogout() {
+    await supabase.auth.signOut();
+    router.push("/login");
+  }
+
   useEffect(() => {
     if (isAuthorized) {
       loadOutlets();
@@ -91,69 +96,32 @@ export default function CommentsPage() {
     }
   }, [isAuthorized, outletId]);
 
-  const stats = {
-    total: comments.length,
-    positive: comments.filter((c) => c.sentiment === "Favourable").length,
-    negative: comments.filter((c) => c.sentiment === "Unfavourable").length,
-    neutral: comments.filter((c) => c.sentiment === "Neutral").length,
-  };
+  if (!isAuthorized) return null;
 
-  const filtered = comments.filter((c) => {
-    const q = query.toLowerCase();
-    const matchesSearch =
-      c.guest_name?.toLowerCase().includes(q) ||
-      c.comment_text?.toLowerCase().includes(q) ||
-      c.phone?.toLowerCase().includes(q) ||
-      c.email?.toLowerCase().includes(q) ||
-      c.address?.toLowerCase().includes(q);
+  // Filter comments based on search query and sentiment
+  const filteredComments = comments.filter((c) => {
+    const matchesQuery =
+      query === "" ||
+      c.guest_name?.toLowerCase().includes(query.toLowerCase()) ||
+      c.comment_text?.toLowerCase().includes(query.toLowerCase()) ||
+      c.email?.toLowerCase().includes(query.toLowerCase()) ||
+      c.phone?.includes(query);
 
     const matchesSentiment =
       filterSentiment === "all" || c.sentiment === filterSentiment;
 
-    return matchesSearch && matchesSentiment;
+    return matchesQuery && matchesSentiment;
   });
 
-  const sentimentStyle = (sentiment?: string) => {
-    if (sentiment === "Favourable") {
-      return {
-        bg: "rgba(34, 197, 94, 0.15)",
-        color: "#86efac",
-        border: "1px solid rgba(34, 197, 94, 0.3)",
-      };
-    }
-    if (sentiment === "Unfavourable") {
-      return {
-        bg: "rgba(239, 68, 68, 0.15)",
-        color: "#fca5a5",
-        border: "1px solid rgba(239, 68, 68, 0.3)",
-      };
-    }
-    return {
-      bg: "rgba(234, 179, 8, 0.15)",
-      color: "#fde68a",
-      border: "1px solid rgba(234, 179, 8, 0.3)",
-    };
+  const stats = {
+    total: filteredComments.length,
+    favourable: filteredComments.filter((c) => c.sentiment === "Favourable")
+      .length,
+    unfavourable: filteredComments.filter(
+      (c) => c.sentiment === "Unfavourable"
+    ).length,
+    neutral: filteredComments.filter((c) => c.sentiment === "Neutral").length,
   };
-
-  const getConfidenceColor = (confidence?: number) => {
-    if (!confidence) return "#64748b";
-    if (confidence >= 0.8) return "#22c55e";
-    if (confidence >= 0.6) return "#fbbf24";
-    return "#ef4444";
-  };
-
-  function renderStars(value?: string) {
-    const n = Number(value);
-    if (!n) return <span style={{ color: "#64748b" }}>—</span>;
-    return (
-      <span style={{ fontSize: 16 }}>
-        <span style={{ color: "#fbbf24" }}>{"★".repeat(n)}</span>
-        <span style={{ color: "#475569" }}>{"★".repeat(5 - n)}</span>
-      </span>
-    );
-  }
-
-  if (!isAuthorized) return null;
 
   return (
     <div
@@ -186,7 +154,7 @@ export default function CommentsPage() {
                 letterSpacing: "-0.02em",
               }}
             >
-              Guest Comments
+              Comments Management
             </h1>
             <p
               style={{
@@ -224,8 +192,6 @@ export default function CommentsPage() {
                 fill="none"
                 stroke="currentColor"
                 strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
               >
                 <rect x="3" y="3" width="7" height="7"></rect>
                 <rect x="14" y="3" width="7" height="7"></rect>
@@ -258,18 +224,47 @@ export default function CommentsPage() {
                 fill="none"
                 stroke="currentColor"
                 strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
               >
                 <line x1="12" y1="5" x2="12" y2="19"></line>
                 <line x1="5" y1="12" x2="19" y2="12"></line>
               </svg>
               Add Comment
             </Link>
+            <button
+              onClick={handleLogout}
+              style={{
+                padding: "12px 20px",
+                borderRadius: 10,
+                background: "rgba(239, 68, 68, 0.1)",
+                color: "#f87171",
+                border: "1px solid rgba(239, 68, 68, 0.3)",
+                fontWeight: 600,
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 8,
+                fontSize: 14,
+                cursor: "pointer",
+                transition: "all 0.2s ease",
+              }}
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                <polyline points="16 17 21 12 16 7"></polyline>
+                <line x1="21" y1="12" x2="9" y2="12"></line>
+              </svg>
+              Logout
+            </button>
           </div>
         </div>
 
-        {/* STATS */}
+        {/* STATS CARDS */}
         <div
           style={{
             display: "grid",
@@ -278,9 +273,17 @@ export default function CommentsPage() {
             marginBottom: 32,
           }}
         >
-          <StatCard label="Total Comments" value={stats.total} color="#60a5fa" />
-          <StatCard label="Favourable" value={stats.positive} color="#22c55e" />
-          <StatCard label="Unfavourable" value={stats.negative} color="#ef4444" />
+          <StatCard label="Total" value={stats.total} color="#60a5fa" />
+          <StatCard
+            label="Favourable"
+            value={stats.favourable}
+            color="#22c55e"
+          />
+          <StatCard
+            label="Unfavourable"
+            value={stats.unfavourable}
+            color="#ef4444"
+          />
           <StatCard label="Neutral" value={stats.neutral} color="#fbbf24" />
         </div>
 
@@ -290,365 +293,300 @@ export default function CommentsPage() {
             background: "linear-gradient(135deg, #334155 0%, #1e293b 100%)",
             borderRadius: 16,
             padding: 24,
-            marginBottom: 24,
             border: "1px solid rgba(255, 255, 255, 0.1)",
             boxShadow: "0 10px 30px rgba(0, 0, 0, 0.3)",
-            display: "flex",
-            gap: 16,
-            flexWrap: "wrap",
-            alignItems: "center",
+            marginBottom: 24,
           }}
         >
-          <input
-            placeholder="Search by name, comment, phone, email, or address..."
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            style={{
-              flex: 1,
-              minWidth: 300,
-              padding: "14px 16px",
-              borderRadius: 10,
-              background: "rgba(15, 23, 42, 0.4)",
-              border: "2px solid rgba(255, 255, 255, 0.08)",
-              color: "#f9fafb",
-              fontSize: 15,
-              outline: "none",
-              transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-              fontFamily: "inherit",
-            }}
-            onFocus={(e) => {
-              e.target.style.borderColor = "rgba(96, 165, 250, 0.6)";
-              e.target.style.background = "rgba(15, 23, 42, 0.6)";
-              e.target.style.boxShadow = "0 0 0 4px rgba(59, 130, 246, 0.1)";
-            }}
-            onBlur={(e) => {
-              e.target.style.borderColor = "rgba(255, 255, 255, 0.08)";
-              e.target.style.background = "rgba(15, 23, 42, 0.4)";
-              e.target.style.boxShadow = "none";
-            }}
-          />
-          <select
-            value={outletId}
-            onChange={(e) => setOutletId(e.target.value)}
-            style={{
-              padding: "14px 16px",
-              borderRadius: 10,
-              background: "rgba(15, 23, 42, 0.4)",
-              border: "2px solid rgba(255, 255, 255, 0.08)",
-              color: "#f9fafb",
-              fontSize: 15,
-              outline: "none",
-              cursor: "pointer",
-              fontFamily: "inherit",
-            }}
-          >
-            <option value="">All Outlets</option>
-            {outlets.map((o) => (
-              <option key={o.id} value={o.id}>
-                {o.outlet_name}
-              </option>
-            ))}
-          </select>
-          <select
-            value={filterSentiment}
-            onChange={(e) => setFilterSentiment(e.target.value)}
-            style={{
-              padding: "14px 16px",
-              borderRadius: 10,
-              background: "rgba(15, 23, 42, 0.4)",
-              border: "2px solid rgba(255, 255, 255, 0.08)",
-              color: "#f9fafb",
-              fontSize: 15,
-              outline: "none",
-              cursor: "pointer",
-              fontFamily: "inherit",
-            }}
-          >
-            <option value="all">All Sentiments</option>
-            <option value="Favourable">Favourable</option>
-            <option value="Unfavourable">Unfavourable</option>
-            <option value="Neutral">Neutral</option>
-          </select>
           <div
             style={{
-              color: "#9ca3af",
-              fontSize: 14,
-              fontWeight: 500,
-              whiteSpace: "nowrap",
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
+              gap: 20,
             }}
           >
-            {filtered.length} results
+            {/* Search */}
+            <div>
+              <label
+                style={{
+                  display: "block",
+                  marginBottom: 8,
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: "#cbd5e1",
+                  letterSpacing: "0.02em",
+                  textTransform: "uppercase",
+                }}
+              >
+                Search
+              </label>
+              <input
+                type="text"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search by name, email, phone..."
+                style={{
+                  width: "100%",
+                  padding: "10px 14px",
+                  borderRadius: 8,
+                  background: "rgba(15,23,42,0.6)",
+                  color: "#f9fafb",
+                  border: "1px solid rgba(255,255,255,0.2)",
+                  fontSize: 14,
+                  outline: "none",
+                }}
+              />
+            </div>
+
+            {/* Outlet Filter */}
+            <div>
+              <label
+                style={{
+                  display: "block",
+                  marginBottom: 8,
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: "#cbd5e1",
+                  letterSpacing: "0.02em",
+                  textTransform: "uppercase",
+                }}
+              >
+                Outlet
+              </label>
+              <select
+                value={outletId}
+                onChange={(e) => setOutletId(e.target.value)}
+                style={{
+                  width: "100%",
+                  padding: "10px 14px",
+                  borderRadius: 8,
+                  background: "rgba(15,23,42,0.6)",
+                  color: "#f9fafb",
+                  border: "1px solid rgba(255,255,255,0.2)",
+                  fontSize: 14,
+                  cursor: "pointer",
+                }}
+              >
+                <option value="">All Outlets</option>
+                {outlets.map((o) => (
+                  <option key={o.id} value={o.id}>
+                    {o.outlet_name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Sentiment Filter */}
+            <div>
+              <label
+                style={{
+                  display: "block",
+                  marginBottom: 8,
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: "#cbd5e1",
+                  letterSpacing: "0.02em",
+                  textTransform: "uppercase",
+                }}
+              >
+                Sentiment
+              </label>
+              <select
+                value={filterSentiment}
+                onChange={(e) => setFilterSentiment(e.target.value)}
+                style={{
+                  width: "100%",
+                  padding: "10px 14px",
+                  borderRadius: 8,
+                  background: "rgba(15,23,42,0.6)",
+                  color: "#f9fafb",
+                  border: "1px solid rgba(255,255,255,0.2)",
+                  fontSize: 14,
+                  cursor: "pointer",
+                }}
+              >
+                <option value="all">All Sentiments</option>
+                <option value="Favourable">Favourable</option>
+                <option value="Unfavourable">Unfavourable</option>
+                <option value="Neutral">Neutral</option>
+              </select>
+            </div>
           </div>
         </div>
 
-        {/* TABLE */}
+        {/* COMMENTS TABLE */}
         <div
           style={{
             background: "linear-gradient(135deg, #334155 0%, #1e293b 100%)",
             borderRadius: 16,
+            padding: 28,
             border: "1px solid rgba(255, 255, 255, 0.1)",
             boxShadow: "0 10px 30px rgba(0, 0, 0, 0.3)",
-            overflow: "hidden",
           }}
         >
-          <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead>
-                <tr
-                  style={{
-                    background: "rgba(15, 23, 42, 0.5)",
-                    borderBottom: "1px solid rgba(255, 255, 255, 0.1)",
-                  }}
-                >
-                  <th style={headerStyle}>Guest Details</th>
-                  <th style={headerStyle}>Comment</th>
-                  <th style={{ ...headerStyle, textAlign: "center" }}>Rating</th>
-                  <th style={{ ...headerStyle, textAlign: "center" }}>Sentiment</th>
-                  <th style={{ ...headerStyle, textAlign: "center" }}>Confidence</th>
-                  <th style={headerStyle}>AI Reason</th>
-                  <th style={{ ...headerStyle, textAlign: "center" }}>Date</th>
-                  <th style={{ ...headerStyle, textAlign: "center" }}>Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {loading ? (
-                  <tr>
-                    <td
-                      colSpan={8}
+          {loading ? (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 12,
+                color: "#9ca3af",
+                padding: "40px 0",
+              }}
+            >
+              <svg
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                style={{ animation: "spin 1s linear infinite" }}
+              >
+                <circle cx="12" cy="12" r="10"></circle>
+                <path d="M12 6v6l4 2"></path>
+              </svg>
+              Loading comments...
+            </div>
+          ) : filteredComments.length === 0 ? (
+            <div
+              style={{
+                textAlign: "center",
+                padding: "40px 0",
+                color: "#9ca3af",
+              }}
+            >
+              <svg
+                width="48"
+                height="48"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                style={{ margin: "0 auto 16px", opacity: 0.5 }}
+              >
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+              </svg>
+              <p style={{ fontSize: 16, fontWeight: 500 }}>No comments found</p>
+            </div>
+          ) : (
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                <thead>
+                  <tr
+                    style={{
+                      borderBottom: "2px solid rgba(255, 255, 255, 0.1)",
+                    }}
+                  >
+                    <th style={headerStyle}>Date</th>
+                    <th style={headerStyle}>Guest</th>
+                    <th style={headerStyle}>Contact</th>
+                    <th style={headerStyle}>Comment</th>
+                    <th style={headerStyle}>Sentiment</th>
+                    <th style={headerStyle}>Rating</th>
+                    <th style={headerStyle}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredComments.map((comment, idx) => (
+                    <tr
+                      key={comment.id}
                       style={{
-                        padding: 48,
-                        textAlign: "center",
-                        color: "#9ca3af",
+                        borderBottom:
+                          idx < filteredComments.length - 1
+                            ? "1px solid rgba(255, 255, 255, 0.05)"
+                            : "none",
                       }}
                     >
-                      <svg
-                        width="40"
-                        height="40"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        style={{
-                          margin: "0 auto 12px",
-                          animation: "spin 1s linear infinite",
-                        }}
-                      >
-                        <circle cx="12" cy="12" r="10"></circle>
-                        <path d="M12 6v6l4 2"></path>
-                      </svg>
-                      <div>Loading comments...</div>
-                    </td>
-                  </tr>
-                ) : filtered.length === 0 ? (
-                  <tr>
-                    <td
-                      colSpan={8}
-                      style={{
-                        padding: 48,
-                        textAlign: "center",
-                        color: "#64748b",
-                      }}
-                    >
-                      <svg
-                        width="48"
-                        height="48"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="1.5"
-                        style={{ margin: "0 auto 16px" }}
-                      >
-                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-                      </svg>
-                      <div style={{ fontSize: 16, fontWeight: 500 }}>
-                        No comments found
-                      </div>
-                      <div style={{ fontSize: 14, marginTop: 8 }}>
-                        {query || filterSentiment !== "all" || outletId
-                          ? "Try adjusting your filters"
-                          : "Add your first comment to get started"}
-                      </div>
-                    </td>
-                  </tr>
-                ) : (
-                  filtered.map((c) => {
-                    const s = sentimentStyle(c.sentiment);
-                    return (
-                      <tr
-                        key={c.id}
-                        style={{
-                          borderBottom: "1px solid rgba(255, 255, 255, 0.05)",
-                          transition: "background 0.2s ease",
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.background =
-                            "rgba(15, 23, 42, 0.5)";
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.background = "transparent";
-                        }}
-                      >
-                        <td style={cellStyle}>
-                          <div
-                            style={{
-                              fontWeight: 600,
-                              color: "#f9fafb",
-                              marginBottom: 6,
-                            }}
-                          >
-                            {c.guest_name || "—"}
-                          </div>
-                          {c.phone && (
-                            <div style={{ fontSize: 13, color: "#9ca3af" }}>
-                              📞 {c.phone}
+                      <td style={cellStyle}>
+                        {comment.created_at
+                          ? new Date(comment.created_at).toLocaleDateString()
+                          : "—"}
+                      </td>
+                      <td style={cellStyle}>
+                        <div style={{ fontWeight: 500, color: "#f9fafb" }}>
+                          {comment.guest_name || "—"}
+                        </div>
+                      </td>
+                      <td style={cellStyle}>
+                        <div style={{ fontSize: 13 }}>
+                          {comment.email && (
+                            <div style={{ marginBottom: 4 }}>
+                              {comment.email}
                             </div>
                           )}
-                          {c.email && (
-                            <div style={{ fontSize: 13, color: "#9ca3af" }}>
-                              ✉️ {c.email}
-                            </div>
-                          )}
-                          {c.address && (
-                            <div style={{ fontSize: 13, color: "#9ca3af" }}>
-                              📍 {c.address}
-                            </div>
-                          )}
-                        </td>
-                        <td style={{ ...cellStyle, maxWidth: 400 }}>
-                          <div
-                            style={{
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                              display: "-webkit-box",
-                              WebkitLineClamp: 2,
-                              WebkitBoxOrient: "vertical",
-                              lineHeight: 1.5,
-                              color: "#e5e7eb",
-                            }}
+                          {comment.phone && <div>{comment.phone}</div>}
+                          {!comment.email && !comment.phone && "—"}
+                        </div>
+                      </td>
+                      <td style={{ ...cellStyle, maxWidth: 300 }}>
+                        <div
+                          style={{
+                            fontSize: 14,
+                            lineHeight: 1.5,
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            display: "-webkit-box",
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: "vertical",
+                          }}
+                        >
+                          {comment.comment_text || "—"}
+                        </div>
+                      </td>
+                      <td style={cellStyle}>
+                        <SentimentBadge sentiment={comment.sentiment} />
+                      </td>
+                      <td style={cellStyle}>
+                        <div
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 4,
+                            padding: "4px 10px",
+                            borderRadius: 6,
+                            background: "rgba(251, 191, 36, 0.15)",
+                            color: "#fbbf24",
+                            fontSize: 13,
+                            fontWeight: 600,
+                          }}
+                        >
+                          <svg
+                            width="14"
+                            height="14"
+                            viewBox="0 0 24 24"
+                            fill="currentColor"
                           >
-                            {c.comment_text || "—"}
-                          </div>
-                        </td>
-                        <td style={{ ...cellStyle, textAlign: "center" }}>
-                          {renderStars(c.rating)}
-                        </td>
-                        <td style={{ ...cellStyle, textAlign: "center" }}>
-                          <span
-                            style={{
-                              padding: "6px 14px",
-                              borderRadius: 8,
-                              fontWeight: 600,
-                              fontSize: 13,
-                              background: s.bg,
-                              color: s.color,
-                              border: s.border,
-                              display: "inline-block",
-                            }}
-                          >
-                            {c.sentiment || "—"}
-                          </span>
-                        </td>
-                        <td style={{ ...cellStyle, textAlign: "center" }}>
-                          {c.sentiment_confidence != null ? (
-                            <div
-                              style={{
-                                display: "inline-flex",
-                                flexDirection: "column",
-                                alignItems: "center",
-                                gap: 4,
-                              }}
-                            >
-                              <div
-                                style={{
-                                  fontSize: 18,
-                                  fontWeight: 700,
-                                  color: getConfidenceColor(c.sentiment_confidence),
-                                }}
-                              >
-                                {Math.round(c.sentiment_confidence * 100)}%
-                              </div>
-                              <div
-                                style={{
-                                  width: 60,
-                                  height: 4,
-                                  background: "rgba(255, 255, 255, 0.1)",
-                                  borderRadius: 2,
-                                  overflow: "hidden",
-                                }}
-                              >
-                                <div
-                                  style={{
-                                    width: `${c.sentiment_confidence * 100}%`,
-                                    height: "100%",
-                                    background: getConfidenceColor(c.sentiment_confidence),
-                                    borderRadius: 2,
-                                  }}
-                                />
-                              </div>
-                            </div>
-                          ) : (
-                            <span style={{ color: "#64748b" }}>—</span>
-                          )}
-                        </td>
-                        <td style={{ ...cellStyle, maxWidth: 300 }}>
-                          <div
-                            style={{
-                              fontSize: 13,
-                              color: "#9ca3af",
-                              fontStyle: "italic",
-                              lineHeight: 1.5,
-                            }}
-                          >
-                            {c.sentiment_reason || "—"}
-                          </div>
-                        </td>
-                        <td style={{ ...cellStyle, textAlign: "center" }}>
-                          {c.created_at ? (
-                            <div style={{ fontSize: 14, color: "#9ca3af" }}>
-                              {new Date(c.created_at).toLocaleDateString()}
-                            </div>
-                          ) : (
-                            <span style={{ color: "#64748b" }}>—</span>
-                          )}
-                        </td>
-                        <td style={{ ...cellStyle, textAlign: "center" }}>
-                          <button
-                            onClick={() => handleDelete(c.id)}
-                            style={{
-                              padding: "8px 16px",
-                              borderRadius: 8,
-                              border: "1px solid rgba(239, 68, 68, 0.3)",
-                              background: "rgba(239, 68, 68, 0.1)",
-                              color: "#fca5a5",
-                              fontSize: 13,
-                              fontWeight: 600,
-                              cursor: "pointer",
-                              transition: "all 0.2s ease",
-                              fontFamily: "inherit",
-                            }}
-                            onMouseEnter={(e) => {
-                              e.currentTarget.style.background =
-                                "rgba(239, 68, 68, 0.2)";
-                              e.currentTarget.style.borderColor =
-                                "rgba(239, 68, 68, 0.5)";
-                            }}
-                            onMouseLeave={(e) => {
-                              e.currentTarget.style.background =
-                                "rgba(239, 68, 68, 0.1)";
-                              e.currentTarget.style.borderColor =
-                                "rgba(239, 68, 68, 0.3)";
-                            }}
-                          >
-                            Delete
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
+                            <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
+                          </svg>
+                          {comment.rating || "—"}
+                        </div>
+                      </td>
+                      <td style={cellStyle}>
+                        <button
+                          onClick={() => handleDelete(comment.id)}
+                          style={{
+                            padding: "6px 12px",
+                            borderRadius: 6,
+                            background: "rgba(239, 68, 68, 0.15)",
+                            color: "#f87171",
+                            border: "1px solid rgba(239, 68, 68, 0.3)",
+                            fontSize: 13,
+                            fontWeight: 600,
+                            cursor: "pointer",
+                            transition: "all 0.2s ease",
+                          }}
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
 
         <style>{`
@@ -662,21 +600,21 @@ export default function CommentsPage() {
 }
 
 const headerStyle: React.CSSProperties = {
-  padding: "16px 20px",
+  padding: "12px 16px",
+  textAlign: "left",
   color: "#cbd5e1",
   fontSize: 13,
   fontWeight: 600,
   textTransform: "uppercase",
   letterSpacing: "0.05em",
-  textAlign: "left",
 };
 
 const cellStyle: React.CSSProperties = {
-  padding: "16px 20px",
+  padding: "16px",
+  color: "#e5e7eb",
   fontSize: 14,
 };
 
-/* STAT CARD COMPONENT */
 function StatCard({
   label,
   value,
@@ -718,6 +656,38 @@ function StatCard({
       >
         {value}
       </div>
+    </div>
+  );
+}
+
+function SentimentBadge({
+  sentiment,
+}: {
+  sentiment?: "Favourable" | "Unfavourable" | "Neutral";
+}) {
+  const colors = {
+    Favourable: { bg: "rgba(34, 197, 94, 0.15)", text: "#22c55e" },
+    Unfavourable: { bg: "rgba(239, 68, 68, 0.15)", text: "#ef4444" },
+    Neutral: { bg: "rgba(251, 191, 36, 0.15)", text: "#fbbf24" },
+  };
+
+  const color = sentiment ? colors[sentiment] : colors.Neutral;
+
+  return (
+    <div
+      style={{
+        display: "inline-block",
+        padding: "4px 12px",
+        borderRadius: 6,
+        background: color.bg,
+        color: color.text,
+        fontSize: 12,
+        fontWeight: 600,
+        textTransform: "uppercase",
+        letterSpacing: "0.05em",
+      }}
+    >
+      {sentiment || "—"}
     </div>
   );
 }

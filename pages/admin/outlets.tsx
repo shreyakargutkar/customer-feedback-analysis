@@ -1,3 +1,4 @@
+// pages/outlets/index.tsx
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import Link from "next/link";
@@ -16,7 +17,7 @@ export default function OutletsPage() {
     async function protectPage() {
       const { data } = await supabase.auth.getUser();
       if (!data?.user) {
-        router.replace("/add-comment");
+        router.replace("/login");
         return;
       }
       const { data: profile } = await supabase
@@ -24,7 +25,9 @@ export default function OutletsPage() {
         .select("role")
         .eq("id", data.user.id)
         .single();
-      if (!profile || profile.role !== "employee") {
+
+      // Allow admin and employee
+      if (!profile || (profile.role !== "admin" && profile.role !== "employee")) {
         router.replace("/add-comment");
       } else {
         setIsAuthorized(true);
@@ -95,9 +98,35 @@ export default function OutletsPage() {
     }
   }
 
+  async function handleLogout() {
+    await supabase.auth.signOut();
+    router.push("/login");
+  }
+
   if (!isAuthorized) {
     return null;
   }
+
+  const getInputStyle = (isFocused: boolean): React.CSSProperties => ({
+    width: "100%",
+    padding: "12px 16px",
+    boxSizing: "border-box",
+    borderRadius: 10,
+    border: isFocused
+      ? "2px solid rgba(96, 165, 250, 0.6)"
+      : "2px solid rgba(255, 255, 255, 0.1)",
+    background: isFocused
+      ? "rgba(15, 23, 42, 0.6)"
+      : "rgba(15, 23, 42, 0.4)",
+    color: "#f9fafb",
+    fontSize: 15,
+    fontFamily: "inherit",
+    transition: "all 0.3s ease",
+    outline: "none",
+    boxShadow: isFocused
+      ? "0 0 0 4px rgba(59, 130, 246, 0.1)"
+      : "none",
+  });
 
   return (
     <div
@@ -108,7 +137,7 @@ export default function OutletsPage() {
         fontFamily: "Inter, system-ui, -apple-system, sans-serif",
       }}
     >
-      <div style={{ maxWidth: 800, margin: "0 auto" }}>
+      <div style={{ maxWidth: 900, margin: "0 auto" }}>
         {/* HEADER */}
         <div
           style={{
@@ -130,7 +159,7 @@ export default function OutletsPage() {
                 letterSpacing: "-0.02em",
               }}
             >
-              Outlet Management
+              Outlets Management
             </h1>
             <p
               style={{
@@ -143,77 +172,135 @@ export default function OutletsPage() {
               Manage your restaurant outlets and locations
             </p>
           </div>
-          <Link
-            href="/dashboard"
-            style={{
-              padding: "12px 20px",
-              borderRadius: 10,
-              background: "rgba(255, 255, 255, 0.05)",
-              color: "#cbd5e1",
-              border: "1px solid rgba(255, 255, 255, 0.1)",
-              fontWeight: 600,
-              textDecoration: "none",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 8,
-              fontSize: 14,
-              transition: "all 0.2s ease",
-            }}
-          >
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
+          <div style={{ display: "flex", gap: 12 }}>
+            <Link
+              href="/dashboard"
+              style={{
+                padding: "12px 20px",
+                borderRadius: 10,
+                background: "rgba(255, 255, 255, 0.05)",
+                color: "#cbd5e1",
+                border: "1px solid rgba(255, 255, 255, 0.1)",
+                fontWeight: 600,
+                textDecoration: "none",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 8,
+                fontSize: 14,
+                transition: "all 0.2s ease",
+              }}
             >
-              <rect x="3" y="3" width="7" height="7"></rect>
-              <rect x="14" y="3" width="7" height="7"></rect>
-              <rect x="14" y="14" width="7" height="7"></rect>
-              <rect x="3" y="14" width="7" height="7"></rect>
-            </svg>
-            Dashboard
-          </Link>
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <rect x="3" y="3" width="7" height="7"></rect>
+                <rect x="14" y="3" width="7" height="7"></rect>
+                <rect x="14" y="14" width="7" height="7"></rect>
+                <rect x="3" y="14" width="7" height="7"></rect>
+              </svg>
+              Dashboard
+            </Link>
+            <Link
+              href="/comments"
+              style={{
+                padding: "12px 20px",
+                borderRadius: 10,
+                background: "rgba(255, 255, 255, 0.05)",
+                color: "#cbd5e1",
+                border: "1px solid rgba(255, 255, 255, 0.1)",
+                fontWeight: 600,
+                textDecoration: "none",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 8,
+                fontSize: 14,
+                transition: "all 0.2s ease",
+              }}
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+              </svg>
+              Comments
+            </Link>
+            <button
+              onClick={handleLogout}
+              style={{
+                padding: "12px 20px",
+                borderRadius: 10,
+                background: "rgba(239, 68, 68, 0.1)",
+                color: "#f87171",
+                border: "1px solid rgba(239, 68, 68, 0.3)",
+                fontWeight: 600,
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 8,
+                fontSize: 14,
+                cursor: "pointer",
+                transition: "all 0.2s ease",
+              }}
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                <polyline points="16 17 21 12 16 7"></polyline>
+                <line x1="21" y1="12" x2="9" y2="12"></line>
+              </svg>
+              Logout
+            </button>
+          </div>
         </div>
 
         {/* STATS CARD */}
         <div
           style={{
             background: "linear-gradient(135deg, #334155 0%, #1e293b 100%)",
-            borderRadius: 12,
-            padding: 20,
-            marginBottom: 32,
+            borderRadius: 16,
+            padding: 24,
             border: "1px solid rgba(255, 255, 255, 0.1)",
-            boxShadow: "0 4px 12px rgba(0, 0, 0, 0.2)",
+            boxShadow: "0 10px 30px rgba(0, 0, 0, 0.3)",
+            marginBottom: 32,
             display: "flex",
             alignItems: "center",
-            gap: 16,
+            gap: 20,
           }}
         >
           <div
             style={{
-              width: 48,
-              height: 48,
+              width: 60,
+              height: 60,
               borderRadius: 12,
               background: "linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              boxShadow: "0 4px 12px rgba(59, 130, 246, 0.3)",
+              boxShadow: "0 8px 20px rgba(59, 130, 246, 0.35)",
             }}
           >
             <svg
-              width="24"
-              height="24"
+              width="28"
+              height="28"
               viewBox="0 0 24 24"
               fill="none"
               stroke="white"
               strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
             >
               <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
               <polyline points="9 22 9 12 15 12 15 22"></polyline>
@@ -222,11 +309,11 @@ export default function OutletsPage() {
           <div style={{ flex: 1 }}>
             <div
               style={{
-                fontSize: 12,
+                fontSize: 14,
                 color: "#9ca3af",
+                fontWeight: 600,
                 textTransform: "uppercase",
                 letterSpacing: "0.05em",
-                fontWeight: 600,
                 marginBottom: 4,
               }}
             >
@@ -234,7 +321,7 @@ export default function OutletsPage() {
             </div>
             <div
               style={{
-                fontSize: 32,
+                fontSize: 36,
                 fontWeight: 700,
                 color: "#60a5fa",
                 lineHeight: 1,
@@ -245,48 +332,35 @@ export default function OutletsPage() {
           </div>
         </div>
 
-        {/* ADD NEW OUTLET CARD */}
+        {/* ADD OUTLET FORM */}
         <div
           style={{
             background: "linear-gradient(135deg, #334155 0%, #1e293b 100%)",
             borderRadius: 16,
-            padding: 32,
-            marginBottom: 24,
+            padding: 28,
             border: "1px solid rgba(255, 255, 255, 0.1)",
             boxShadow: "0 10px 30px rgba(0, 0, 0, 0.3)",
+            marginBottom: 32,
           }}
         >
-          <div
+          <h2
             style={{
+              color: "#f9fafb",
               fontSize: 20,
               fontWeight: 600,
-              color: "#f9fafb",
-              marginBottom: 24,
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
+              marginBottom: 20,
+              letterSpacing: "-0.01em",
             }}
           >
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <line x1="12" y1="5" x2="12" y2="19"></line>
-              <line x1="5" y1="12" x2="19" y2="12"></line>
-            </svg>
             Add New Outlet
-          </div>
+          </h2>
 
-          <div style={{ display: "flex", gap: 12 }}>
-            <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
+          <div style={{ display: "flex", gap: 12, alignItems: "flex-end" }}>
+            <div style={{ flex: 1 }}>
               <label
                 style={{
+                  display: "block",
+                  marginBottom: 8,
                   fontSize: 13,
                   fontWeight: 600,
                   color: "#cbd5e1",
@@ -300,69 +374,50 @@ export default function OutletsPage() {
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="e.g., Downtown Branch, Airport Location"
-                style={{
-                  padding: "14px 16px",
-                  borderRadius: 10,
-                  border: focusedInput
-                    ? "2px solid rgba(96, 165, 250, 0.6)"
-                    : "2px solid rgba(255, 255, 255, 0.08)",
-                  background: focusedInput
-                    ? "rgba(15, 23, 42, 0.6)"
-                    : "rgba(15, 23, 42, 0.4)",
-                  color: "#f9fafb",
-                  fontSize: 15,
-                  fontFamily: "inherit",
-                  transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-                  outline: "none",
-                  width: "100%",
-                  boxSizing: "border-box",
-                  boxShadow: focusedInput
-                    ? "0 0 0 4px rgba(59, 130, 246, 0.1)"
-                    : "none",
-                }}
                 onFocus={() => setFocusedInput(true)}
                 onBlur={() => setFocusedInput(false)}
-                onKeyPress={(e) => e.key === "Enter" && addOutlet()}
+                placeholder="Enter outlet name (e.g., Downtown Branch)"
+                style={getInputStyle(focusedInput)}
+                disabled={loading}
               />
             </div>
-
             <button
               onClick={addOutlet}
-              disabled={loading}
+              disabled={loading || !name.trim()}
               style={{
-                padding: "14px 28px",
+                padding: "12px 24px",
                 borderRadius: 10,
                 border: "none",
-                background: loading
-                  ? "linear-gradient(135deg, #64748b 0%, #475569 100%)"
-                  : "linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)",
+                background:
+                  loading || !name.trim()
+                    ? "rgba(100, 116, 139, 0.5)"
+                    : "linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)",
                 color: "#ffffff",
                 fontSize: 15,
                 fontWeight: 600,
-                cursor: loading ? "not-allowed" : "pointer",
-                transition: "all 0.2s ease",
-                boxShadow: loading
-                  ? "none"
-                  : "0 4px 12px rgba(59, 130, 246, 0.3)",
-                fontFamily: "inherit",
+                cursor: loading || !name.trim() ? "not-allowed" : "pointer",
+                transition: "all 0.3s ease",
+                boxShadow:
+                  loading || !name.trim()
+                    ? "none"
+                    : "0 8px 20px rgba(59, 130, 246, 0.35)",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 8,
                 whiteSpace: "nowrap",
-                alignSelf: "flex-end",
-              }}
-              onMouseEnter={(e) => {
-                if (!loading) {
-                  e.currentTarget.style.transform = "translateY(-2px)";
-                  e.currentTarget.style.boxShadow =
-                    "0 6px 16px rgba(59, 130, 246, 0.4)";
-                }
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = "translateY(0)";
-                e.currentTarget.style.boxShadow = loading
-                  ? "none"
-                  : "0 4px 12px rgba(59, 130, 246, 0.3)";
               }}
             >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
               {loading ? "Adding..." : "Add Outlet"}
             </button>
           </div>
@@ -373,159 +428,146 @@ export default function OutletsPage() {
           style={{
             background: "linear-gradient(135deg, #334155 0%, #1e293b 100%)",
             borderRadius: 16,
-            padding: 32,
+            padding: 28,
             border: "1px solid rgba(255, 255, 255, 0.1)",
             boxShadow: "0 10px 30px rgba(0, 0, 0, 0.3)",
           }}
         >
-          <div
+          <h2
             style={{
+              color: "#f9fafb",
               fontSize: 20,
               fontWeight: 600,
-              color: "#f9fafb",
-              marginBottom: 20,
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
+              marginBottom: 24,
+              letterSpacing: "-0.01em",
             }}
           >
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
-            </svg>
-            All Outlets ({outlets.length})
-          </div>
+            All Outlets
+          </h2>
 
           {outlets.length === 0 ? (
             <div
               style={{
                 textAlign: "center",
-                padding: "48px 20px",
-                color: "#64748b",
+                padding: "60px 20px",
+                color: "#9ca3af",
               }}
             >
               <svg
-                width="48"
-                height="48"
+                width="64"
+                height="64"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
                 strokeWidth="1.5"
-                style={{ margin: "0 auto 16px" }}
+                style={{ margin: "0 auto 20px", opacity: 0.4 }}
               >
                 <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
                 <polyline points="9 22 9 12 15 12 15 22"></polyline>
               </svg>
-              <p style={{ margin: 0, fontSize: 16, fontWeight: 500 }}>
+              <p style={{ fontSize: 18, fontWeight: 500, marginBottom: 8 }}>
                 No outlets yet
               </p>
-              <p style={{ margin: "8px 0 0", fontSize: 14 }}>
-                Add your first outlet to get started
+              <p style={{ fontSize: 14, opacity: 0.7 }}>
+                Add your first outlet using the form above
               </p>
             </div>
           ) : (
-            <div>
-              {outlets.map((outlet) => (
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {outlets.map((outlet, idx) => (
                 <div
                   key={outlet.id}
                   style={{
-                    background: "rgba(15, 23, 42, 0.5)",
-                    borderRadius: 10,
-                    padding: "18px 20px",
-                    marginBottom: 12,
+                    background: "rgba(15, 23, 42, 0.4)",
+                    borderRadius: 12,
+                    padding: "20px 24px",
+                    border: "1px solid rgba(255, 255, 255, 0.08)",
                     display: "flex",
-                    alignItems: "center",
                     justifyContent: "space-between",
-                    border: "1px solid rgba(255, 255, 255, 0.05)",
+                    alignItems: "center",
                     transition: "all 0.2s ease",
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.background = "rgba(15, 23, 42, 0.7)";
+                    e.currentTarget.style.background = "rgba(15, 23, 42, 0.6)";
                     e.currentTarget.style.borderColor =
-                      "rgba(255, 255, 255, 0.1)";
+                      "rgba(255, 255, 255, 0.15)";
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.background = "rgba(15, 23, 42, 0.5)";
+                    e.currentTarget.style.background = "rgba(15, 23, 42, 0.4)";
                     e.currentTarget.style.borderColor =
-                      "rgba(255, 255, 255, 0.05)";
+                      "rgba(255, 255, 255, 0.08)";
                   }}
                 >
-                  <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
                     <div
                       style={{
-                        width: 40,
-                        height: 40,
-                        borderRadius: 8,
+                        width: 44,
+                        height: 44,
+                        borderRadius: 10,
                         background:
-                          "linear-gradient(135deg, rgba(59, 130, 246, 0.2) 0%, rgba(139, 92, 246, 0.2) 100%)",
+                          "linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)",
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
-                        border: "1px solid rgba(59, 130, 246, 0.3)",
-                      }}
-                    >
-                      <svg
-                        width="20"
-                        height="20"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="#60a5fa"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
-                        <polyline points="9 22 9 12 15 12 15 22"></polyline>
-                      </svg>
-                    </div>
-                    <span
-                      style={{
                         fontSize: 16,
-                        fontWeight: 600,
-                        color: "#f9fafb",
+                        fontWeight: 700,
+                        color: "#ffffff",
                       }}
                     >
-                      {outlet.outlet_name}
-                    </span>
+                      {idx + 1}
+                    </div>
+                    <div>
+                      <div
+                        style={{
+                          fontSize: 16,
+                          fontWeight: 600,
+                          color: "#f9fafb",
+                          marginBottom: 4,
+                        }}
+                      >
+                        {outlet.outlet_name}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: 13,
+                          color: "#9ca3af",
+                          fontFamily: "monospace",
+                        }}
+                      >
+                        ID: {outlet.id}
+                      </div>
+                    </div>
                   </div>
+
                   <button
                     onClick={() => deleteOutlet(outlet.id)}
                     disabled={loading}
                     style={{
                       padding: "8px 16px",
                       borderRadius: 8,
+                      background: "rgba(239, 68, 68, 0.15)",
+                      color: "#f87171",
                       border: "1px solid rgba(239, 68, 68, 0.3)",
-                      background: "rgba(239, 68, 68, 0.1)",
-                      color: "#fca5a5",
-                      fontSize: 13,
+                      fontSize: 14,
                       fontWeight: 600,
                       cursor: loading ? "not-allowed" : "pointer",
                       transition: "all 0.2s ease",
-                      fontFamily: "inherit",
-                    }}
-                    onMouseEnter={(e) => {
-                      if (!loading) {
-                        e.currentTarget.style.background =
-                          "rgba(239, 68, 68, 0.2)";
-                        e.currentTarget.style.borderColor =
-                          "rgba(239, 68, 68, 0.5)";
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background =
-                        "rgba(239, 68, 68, 0.1)";
-                      e.currentTarget.style.borderColor =
-                        "rgba(239, 68, 68, 0.3)";
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 6,
                     }}
                   >
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    >
+                      <polyline points="3 6 5 6 21 6"></polyline>
+                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                    </svg>
                     Delete
                   </button>
                 </div>

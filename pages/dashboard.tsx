@@ -31,7 +31,6 @@ export default function Dashboard() {
   const [comments, setComments] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [trend, setTrend] = useState<any>({});
-  // 🔹 1. NEW STATES FOR OUTLET FILTERING
   const [outlets, setOutlets] = useState<any[]>([]);
   const [selectedOutlet, setSelectedOutlet] = useState<string>("");
 
@@ -40,7 +39,7 @@ export default function Dashboard() {
       const { data } = await supabase.auth.getUser();
 
       if (!data?.user) {
-        router.replace("/add-comment");
+        router.replace("/login");
         return;
       }
 
@@ -50,7 +49,8 @@ export default function Dashboard() {
         .eq("id", data.user.id)
         .single();
 
-      if (profile?.role !== "employee") {
+      // ✅ Allow ONLY admin/employee to access dashboard
+      if (profile?.role !== "admin" && profile?.role !== "employee") {
         router.replace("/add-comment");
       }
     }
@@ -58,15 +58,17 @@ export default function Dashboard() {
     protectPage();
   }, [router]);
 
-  // 🔹 4. FILTER COMMENTS BY SELECTED OUTLET
+  // Filter comments by selected outlet
   const outletComments = selectedOutlet
     ? comments.filter((c) => c.outlet_id === selectedOutlet)
     : [];
 
   const stats = {
     total: outletComments.length,
-    favourable: outletComments.filter((c) => c.sentiment === "Favourable").length,
-    unfavourable: outletComments.filter((c) => c.sentiment === "Unfavourable").length,
+    favourable: outletComments.filter((c) => c.sentiment === "Favourable")
+      .length,
+    unfavourable: outletComments.filter((c) => c.sentiment === "Unfavourable")
+      .length,
     neutral: outletComments.filter((c) => c.sentiment === "Neutral").length,
   };
 
@@ -92,14 +94,12 @@ export default function Dashboard() {
     setTrend(json.trend || {});
   }
 
-  // 🔹 2. NEW FUNCTION TO LOAD OUTLETS
   async function loadOutlets() {
     const res = await fetch("/api/outlets");
     const json = await res.json();
     setOutlets(json.data || []);
   }
 
-  // 🔹 3. CALL loadOutlets IN useEffect
   useEffect(() => {
     loadComments();
     loadTrend();
@@ -269,6 +269,11 @@ export default function Dashboard() {
     };
   }
 
+  async function handleLogout() {
+    await supabase.auth.signOut();
+    router.push("/login");
+  }
+
   return (
     <div
       style={{
@@ -377,6 +382,39 @@ export default function Dashboard() {
               </svg>
               Add Comment
             </Link>
+            <button
+              onClick={handleLogout}
+              style={{
+                padding: "12px 20px",
+                borderRadius: 10,
+                background: "rgba(239, 68, 68, 0.1)",
+                color: "#f87171",
+                border: "1px solid rgba(239, 68, 68, 0.3)",
+                fontWeight: 600,
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 8,
+                fontSize: 14,
+                cursor: "pointer",
+                transition: "all 0.2s ease",
+              }}
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                <polyline points="16 17 21 12 16 7"></polyline>
+                <line x1="21" y1="12" x2="9" y2="12"></line>
+              </svg>
+              Logout
+            </button>
           </div>
         </div>
 
@@ -669,7 +707,7 @@ export default function Dashboard() {
           )}
         </div>
 
-        {/* 🔹 6. OUTLET DROPDOWN SELECTOR */}
+        {/* OUTLET DROPDOWN SELECTOR */}
         <div
           style={{
             background: "linear-gradient(135deg, #334155 0%, #1e293b 100%)",
@@ -716,14 +754,15 @@ export default function Dashboard() {
           </select>
         </div>
 
-        {/* SERVICE IMPROVEMENT CONCLUSION - 🔹 5. NOW USES outletComments */}
+        {/* SERVICE IMPROVEMENT CONCLUSION */}
         {selectedOutlet ? (
           (() => {
             const conclusion = generateConclusion(outletComments);
             return (
               <div
                 style={{
-                  background: "linear-gradient(135deg, #334155 0%, #1e293b 100%)",
+                  background:
+                    "linear-gradient(135deg, #334155 0%, #1e293b 100%)",
                   borderRadius: 16,
                   padding: 28,
                   border: "1px solid rgba(255, 255, 255, 0.1)",
